@@ -1,13 +1,16 @@
-from models.cms_manager import CMSManager
-from utilities.facade import CMSFacade
+from cms_manager import CMSManager
 from patterns.factory import ContentFactory
 from patterns.builder import ArticleBuilder
+from patterns.bridge import SQLDatabaseBridge
+from patterns.observer import EmailNotifier, Logger
+
 
 def display_menu():
     print("\nContent Management System")
     print("1. Write a New Article")
     print("2. View All Articles")
-    print("3. Exit")
+    print("3. Export Articles")
+    print("4. Exit")
     choice = input("Enter your choice: ")
     return choice
 
@@ -18,7 +21,7 @@ def create_article(cms, factory):
     tags = input("Enter tags (comma-separated): ").split(',')
 
     # Create or find the author
-    author = next((a for a in cms.authors if a.name == author_name), None)
+    author = next((a for a in cms.get_authors() if a.name == author_name), None)
     if not author:
         author = factory.create_content('author', name=author_name)
         cms.add_author(author)
@@ -90,33 +93,42 @@ def create_comment(article, cms, factory):
     cms.add_comment(article, comment)
     print("Comment added successfully!")
 
+def export_articles(cms):
+    format_type = input("Enter export format (json/xml): ").strip().lower()
+    try:
+        exported_data = cms.export_articles(format_type)
+        print(f"Exported Articles:\n{exported_data}")
+    except ValueError as e:
+        print(e)
+
 def main():
+    cms = CMSManager(db_bridge)
+    db_bridge = SQLDatabaseBridge()
     factory = ContentFactory()
 
-    cms = CMSFacade()
+    # Attach observers
+    email_notifier = EmailNotifier()
+    logger = Logger()
+    cms.attach(email_notifier)
+    cms.attach(logger)
 
-    # Creating and displaying articles using the facade
-    cms.create_article("First Article", "Content of the first article.", "Emre Batuhan Sungur", ["introduction"])
-    cms.create_article("Second Article", "Content of the second article.", "Jane Doe", ["example", "cms"])
-    cms.display_articles()
-
-    # Adding comments
-    cms.add_comment(1, "This is a comment on the first article.", "Alice")
-    cms.add_comment(2, "Another comment on the second article.", "Bob")
-    cms.display_articles()
-    
-    while True:
-        choice = display_menu()
-        if choice == '1':
-            create_article(cms, factory)
-        elif choice == '2':
-            view_articles(cms, factory)
-        elif choice == '3':
-            print("Exiting...")
-            break
-        else:
-            print("Invalid choice. Please try again.")
+    try:
+        while True:
+            choice = display_menu()
+            if choice == '1':
+                create_article(cms, factory)
+            elif choice == '2':
+                view_articles(cms, factory)
+            elif choice == '3':
+                export_articles(cms)
+            elif choice == '4':
+                print("Exiting...")
+                break
+            else:
+                print("Invalid choice. Please try again.")
+    finally:
+        cms.close()
 
 if __name__ == "__main__":
     main()
-1
+
